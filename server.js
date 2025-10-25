@@ -108,8 +108,6 @@ app.get('/api/health', (req, res) => {
 
 // Serve frontend
 app.use(express.static(path.join(__dirname, './frontend/build')));
-
-// Catch-all route for React Router (must be last)
 app.use((req, res) => {
   res.sendFile(path.join(__dirname, './frontend/build', 'index.html'));
 });

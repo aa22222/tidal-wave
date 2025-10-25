@@ -1,133 +1,259 @@
+import sys
+import os
+import json
 import numpy as np
+import librosa
 import soundfile as sf
-from scipy.signal import resample, stft
-from scipy.spatial.distance import cdist
-from scipy.spatial.distance import cosine
-import json, sys, os
-from fastdtw import fastdtw  # pip install fastdtw
+from scipy.spatial.distance import euclidean
 
-sr = 22050
-n_mels = 64
-hop_length = 512
 
-def load_audio(path, target_sr=22050, mono=True):
-    data, sr = sf.read(path)
-    # convert to mono
-    if data.ndim > 1:
-        data = data.mean(axis=1)
-    # resample if needed
-    if sr != target_sr:
-        num_samples = int(len(data) * target_sr / sr)
-        data = resample(data, num_samples)
-        sr = target_sr
-    # normalize
-    data = (data - np.mean(data)) / (np.std(data) + 1e-8)
-    return data, sr
+def rms_db(y):
+    """Calculate RMS in dB."""
+    energy = np.sqrt(np.mean(np.square(y)) + 1e-12)
+    return 20 * np.log10(energy + 1e-12)
 
-def mel_filterbank(sr, n_fft, n_mels):
-    # Simple Mel filterbank approximation
-    def hz_to_mel(hz):
-        return 2595 * np.log10(1 + hz / 700)
-    def mel_to_hz(m):
-        return 700 * (10**(m / 2595) - 1)
 
-    f_min, f_max = 0, sr / 2
-    m_min, m_max = hz_to_mel(f_min), hz_to_mel(f_max)
-    m_points = np.linspace(m_min, m_max, n_mels + 2)
-    hz_points = mel_to_hz(m_points)
-    bin_points = np.floor((n_fft + 1) * hz_points / sr).astype(int)
+def dtw_with_diagonal_constraint(cost_matrix, band_width=0.1):
+    """
+    DTW with Sakoe-Chiba band constraint to prevent path collapse.
+    band_width: fraction of matrix size (0.1 = 10% deviation allowed)
+    """
+    N, M = cost_matrix.shape
+    band = max(1, int(max(N, M) * band_width))
+    
+    # Initialize cumulative cost matrix
+    D = np.full((N, M), np.inf)
+    D[0, 0] = cost_matrix[0, 0]
+    
+    # Fill first row and column within band
+    for i in range(1, min(N, band + 1)):
+        D[i, 0] = D[i-1, 0] + cost_matrix[i, 0]
+    for j in range(1, min(M, band + 1)):
+        D[0, j] = D[0, j-1] + cost_matrix[0, j]
+    
+    # Dynamic programming with band constraint
+    for i in range(1, N):
+        j_start = max(1, i - band)
+        j_end = min(M, i + band + 1)
+        for j in range(j_start, j_end):
+            cost = cost_matrix[i, j]
+            D[i, j] = cost + min(D[i-1, j], D[i, j-1], D[i-1, j-1])
+    
+    # Backtrack
+    path = [(N-1, M-1)]
+    i, j = N-1, M-1
+    while i > 0 or j > 0:
+        if i == 0:
+            j -= 1
+        elif j == 0:
+            i -= 1
+        else:
+            candidates = [
+                (i-1, j-1, D[i-1, j-1]),
+                (i-1, j, D[i-1, j]),
+                (i, j-1, D[i, j-1])
+            ]
+            i, j, _ = min(candidates, key=lambda x: x[2])
+        path.append((i, j))
+    
+    path.reverse()
+    return np.array(path), D[N-1, M-1] / (N + M)
 
-    filters = np.zeros((n_mels, n_fft // 2 + 1))
-    for m in range(1, n_mels + 1):
-        f_m_minus, f_m, f_m_plus = bin_points[m-1], bin_points[m], bin_points[m+1]
-        for k in range(f_m_minus, f_m):
-            filters[m-1, k] = (k - f_m_minus) / max(1, f_m - f_m_minus)
-        for k in range(f_m, f_m_plus):
-            filters[m-1, k] = (f_m_plus - k) / max(1, f_m_plus - f_m)
-    return filters
 
-def compute_mel_spectrogram(y, sr, n_mels, hop_length):
-    n_fft = 1024
-    _, _, Zxx = stft(y, fs=sr, nperseg=n_fft, noverlap=n_fft-hop_length)
-    S = np.abs(Zxx)**2
-    mel_fb = mel_filterbank(sr, n_fft, n_mels)
-    S_mel = mel_fb @ S
-    S_db = 10 * np.log10(S_mel + 1e-10)
-    return S_db
+def segment_analysis(master_seg, performer_seg, sr, s_start, s_end, seg_id, outdir):
+    """
+    Analyze segment with improved DTW that prevents path collapse.
+    """
+    hop = 512
+    n_mels = 40  # Reduced for more stable features
+    n_fft = 2048
 
-def get_match(parent, clip):
-    logP_parent = compute_mel_spectrogram(parent, sr, n_mels, hop_length)
-    logP_clip   = compute_mel_spectrogram(clip, sr, n_mels, hop_length)
+    # Use MFCC instead of mel spectrogram for more robust features
+    mfcc_m = librosa.feature.mfcc(y=master_seg, sr=sr, n_mfcc=n_mels, hop_length=hop, n_fft=n_fft)
+    mfcc_p = librosa.feature.mfcc(y=performer_seg, sr=sr, n_mfcc=n_mels, hop_length=hop, n_fft=n_fft)
+    
+    # Normalize per feature dimension
+    X = mfcc_m.T
+    Y = mfcc_p.T
+    
+    # Compute Euclidean distance (more stable than cosine for identical signals)
+    N, M = X.shape[0], Y.shape[0]
+    cost_matrix = np.zeros((N, M))
+    for i in range(N):
+        for j in range(M):
+            cost_matrix[i, j] = euclidean(X[i], Y[j])
+    
+    # DTW with band constraint (allows max 20% deviation from diagonal)
+    path, avg_cost = dtw_with_diagonal_constraint(cost_matrix, band_width=0.2)
+    i, j = path[:, 0], path[:, 1]
 
-    X = logP_parent.T
-    Y = logP_clip.T
+    # Convert frame indices to time
+    t_m = i * hop / sr
+    t_p = j * hop / sr
 
-    X = (X - X.mean(axis=1, keepdims=True)) / (X.std(axis=1, keepdims=True) + 1e-8)
-    Y = (Y - Y.mean(axis=1, keepdims=True)) / (Y.std(axis=1, keepdims=True) + 1e-8)
+    # Tempo estimation with better regression
+    if len(t_m) > 10:
+        # Remove outliers using RANSAC-like approach
+        valid_idx = (t_m > 0.1) & (t_p > 0.1)  # Skip initial noisy frames
+        t_m_clean = t_m[valid_idx]
+        t_p_clean = t_p[valid_idx]
+        
+        if len(t_m_clean) > 5:
+            # Fit: t_p = slope * t_m + offset
+            A = np.vstack([t_m_clean, np.ones_like(t_m_clean)]).T
+            result = np.linalg.lstsq(A, t_p_clean, rcond=None)
+            slope, offset = result[0]
+            residuals = result[1]
+            
+            # Check fit quality
+            if len(residuals) > 0:
+                rmse = np.sqrt(residuals[0] / len(t_m_clean))
+            else:
+                rmse = 0.0
+            
+            tempo_diff = (slope - 1.0) * 100.0
+        else:
+            slope = 1.0
+            tempo_diff = 0.0
+            rmse = 0.0
+    else:
+        slope = 1.0
+        tempo_diff = 0.0
+        rmse = 0.0
 
-    cost, path = fastdtw(X, Y, dist=lambda a, b: cosine(a, b))
+    # Extract aligned audio - use full segments since they should match
+    master_start_sample = max(0, int(np.min(i) * hop))
+    master_end_sample = min(len(master_seg), int(np.max(i) * hop) + hop)
+    master_aligned = master_seg[master_start_sample:master_end_sample]
+    
+    performer_start_sample = max(0, int(np.min(j) * hop))
+    performer_end_sample = min(len(performer_seg), int(np.max(j) * hop) + hop)
+    performer_aligned = performer_seg[performer_start_sample:performer_end_sample]
 
-    # extract parent frame indices
-    parent_indices = np.array([i for i, j in path])
-    start_parent_frame = parent_indices.min()
-    end_parent_frame = parent_indices.max()
+    # Ensure valid segments
+    if len(master_aligned) < sr * 0.1:
+        master_aligned = master_seg
+    if len(performer_aligned) < sr * 0.1:
+        performer_aligned = performer_seg
 
-    # convert frames -> time (seconds)
-    start_time = start_parent_frame * hop_length / sr
-    end_time = (end_parent_frame * hop_length + hop_length) / sr
+    # Calculate RMS on aligned segments
+    rms_m = rms_db(master_aligned)
+    rms_p = rms_db(performer_aligned)
+    loud_diff = rms_p - rms_m
 
-    return (start_time, end_time) #
-    # print(f"Clip best matches parent between {start_time:.2f}s and {end_time:.2f}s")
+    # Export segments
+    # m_path = os.path.join(outdir, f"master_seg_{seg_id}.wav")
+    # p_path = os.path.join(outdir, f"performer_seg_{seg_id}.wav")
+    # sf.write(m_path, master_aligned, sr)
+    # sf.write(p_path, performer_aligned, sr)
 
-def process_files(file1_path, file2_path):
-    print("Processing files:")
-    print(f"File 1: {file1_path}")
-    print(f"File 2: {file2_path}")
-
-    # Check that both files exist
-    if not os.path.exists(file1_path):
-        print(f"Error: File 1 does not exist at {file1_path}")
-        sys.exit(1)
-    if not os.path.exists(file2_path):
-        print(f"Error: File 2 does not exist at {file2_path}")
-        sys.exit(1)
-
-    # Print file sizes for info
-    file1_size = os.path.getsize(file1_path)
-    file2_size = os.path.getsize(file2_path)
-    print(f"File 1 size: {file1_size} bytes")
-    print(f"File 2 size: {file2_size} bytes")
-
-    # Load WAV audio (librosa handles .wav natively)
-    try:
-        sr = 22050  # standard sampling rate
-        parent, _ = load_audio(file1_path, target_sr=sr, mono=True)
-        clip, _ = load_audio(file2_path, target_sr=sr, mono=True)
-    except Exception as e:
-        print(f"Error loading audio files: {e}")
-        sys.exit(1)
-
-    print("Audio loaded successfully.")
-    print(f"Parent length: {len(parent)} samples, Clip length: {len(clip)} samples")
-
-    start_time, end_time = get_match(parent, clip)
-
-    print("Processing completed successfully.")
-    print(f"Clip best matches parent between {start_time:.2f}s and {end_time:.2f}s")
-
-    result = {
-        "status": "success",
-        "start_time": start_time,
-        "end_time": end_time,
+    return {
+        "segment_id": seg_id,
+        "master_time": [round(s_start, 3), round(s_end, 3)],
+        "performer_time_range": [
+            round(float(t_p.min()), 3), 
+            round(float(t_p.max()), 3)
+        ],
+        "tempo_diff_percent": round(float(tempo_diff), 3),
+        "loudness_db_diff": round(float(loud_diff), 3),
+        "alignment_cost_mean": round(float(avg_cost), 5),
+        "alignment_rmse": round(float(rmse), 5),
+        # "master_segment_file": m_path,
+        # "performer_segment_file": p_path,
     }
-    print(json.dumps(result))
+
+
+def process_files(m_path, p_path, seg_len=10, output_json="analysis_results.json"):
+    """Process files and save results to JSON without printing."""
+    
+    sr = 22050
+    
+    # Load and trim
+    m, _ = librosa.load(m_path, sr=sr, mono=True)
+    p, _ = librosa.load(p_path, sr=sr, mono=True)
+    m, _ = librosa.effects.trim(m, top_db=40)
+    p, _ = librosa.effects.trim(p, top_db=40)
+
+    # Setup
+    seg_samples = int(seg_len * sr)
+    # os.makedirs("segments_output", exist_ok=True)
+    segments = []
+
+    # Process segments
+    n_segments = int(np.ceil(len(m) / seg_samples))
+    
+    for i in range(n_segments):
+        m_start = i * seg_samples
+        m_end = min((i + 1) * seg_samples, len(m))
+        master_seg = m[m_start:m_end]
+        
+        if np.allclose(master_seg, 0, atol=1e-8) or len(master_seg) < sr * 0.5:
+            continue
+        
+        p_start = min(i * seg_samples, len(p))
+        p_end = min((i + 1) * seg_samples, len(p))
+        
+        if p_start >= len(p):
+            continue
+            
+        performer_seg = p[p_start:p_end]
+        
+        # Match lengths
+        if len(performer_seg) < len(master_seg):
+            performer_seg = np.pad(
+                performer_seg, 
+                (0, len(master_seg) - len(performer_seg)), 
+                mode='constant'
+            )
+        elif len(performer_seg) > len(master_seg):
+            performer_seg = performer_seg[:len(master_seg)]
+        
+        result = segment_analysis(
+            master_seg, performer_seg, sr, 
+            m_start / sr, m_end / sr, i, "segments_output"
+        )
+        segments.append(result)
+
+    # Calculate statistics
+    if segments:
+        tempo_diffs = [s["tempo_diff_percent"] for s in segments]
+        loud_diffs = [s["loudness_db_diff"] for s in segments]
+        
+        summary = {
+            "status": "success",
+            "master_file": m_path,
+            "performer_file": p_path,
+            "total_segments": len(segments),
+            "tempo_stats": {
+                "mean": round(float(np.mean(tempo_diffs)), 3),
+                "std": round(float(np.std(tempo_diffs)), 3),
+                "min": round(float(np.min(tempo_diffs)), 3),
+                "max": round(float(np.max(tempo_diffs)), 3),
+            },
+            "loudness_stats": {
+                "mean": round(float(np.mean(loud_diffs)), 3),
+                "std": round(float(np.std(loud_diffs)), 3),
+                "min": round(float(np.min(loud_diffs)), 3),
+                "max": round(float(np.max(loud_diffs)), 3),
+            },
+            "segments": segments
+        }
+    else:
+        summary = {"status": "no_valid_segments", "segments": []}
+    
+    # Save to JSON file
+    # with open(output_json, 'w') as f:
+    #     json.dump(summary, f, indent=4)
+    
+    print(json.dumps(summary))
+    return summary
+
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Error: Two file paths are required as arguments")
+    if len(sys.argv) < 3:
+        print("Usage: python audio_compare_v2.py <master.wav> <performer.wav> [output.json]")
         sys.exit(1)
-
-    file1_path = sys.argv[1]
-    file2_path = sys.argv[2]
-
-    process_files(file1_path, file2_path)
+    
+    output_json = sys.argv[3] if len(sys.argv) > 3 else "analysis_results.json"
+    process_files(sys.argv[1], sys.argv[2], output_json=output_json)
+    # print(f"Analysis complete. Results saved to {output_json}")

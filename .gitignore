@@ -8,6 +8,8 @@
 #other
 /uploads
 /local_test
+/segments_output
+analysis_results.json
 
 # misc
 .DS_Store
