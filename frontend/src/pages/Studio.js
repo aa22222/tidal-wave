@@ -21,6 +21,8 @@ function Studio() {
   const audioCtxRef = useRef(null);
   const startTime1Ref = useRef(0);
   const startTime2Ref = useRef(0);
+  const offset1Ref = useRef(0);
+  const offset2Ref = useRef(0);
   const animationFrame1Ref = useRef(null);
   const animationFrame2Ref = useRef(null);
   const waveformData1Ref = useRef(null);
@@ -132,14 +134,29 @@ function Studio() {
     }
   };
 
-  const togglePlay1 = () => {
+  const playFromPosition1 = (offsetSeconds) => {
     if (!audioBuffer1) return;
 
+    // Stop current playback if playing
     if (playing1 && audioSource1) {
-      // Stop playing
       audioSource1.stop();
-      setAudioSource1(null);
+      if (animationFrame1Ref.current) {
+        cancelAnimationFrame(animationFrame1Ref.current);
+      }
+    }
+
+    // Start playing from offset
+    const source = audioCtxRef.current.createBufferSource();
+    source.buffer = audioBuffer1;
+    source.connect(audioCtxRef.current.destination);
+    startTime1Ref.current = audioCtxRef.current.currentTime;
+    offset1Ref.current = offsetSeconds;
+    source.start(0, offsetSeconds);
+
+    source.onended = () => {
       setPlaying1(false);
+      setAudioSource1(null);
+      offset1Ref.current = 0;
       if (animationFrame1Ref.current) {
         cancelAnimationFrame(animationFrame1Ref.current);
       }
@@ -147,54 +164,90 @@ function Studio() {
       if (waveformData1Ref.current) {
         drawWaveformStatic(canvas1Ref.current, audioBuffer1, waveformData1Ref);
       }
+    };
+
+    setAudioSource1(source);
+    setPlaying1(true);
+
+    // Animation loop for playhead
+    const animate = () => {
+      const elapsed = audioCtxRef.current.currentTime - startTime1Ref.current;
+      const currentTime = offset1Ref.current + elapsed;
+      const progress = (currentTime / audioBuffer1.duration) * 100;
+
+      if (progress <= 100 && canvas1Ref.current && audioBuffer1) {
+        drawPlayhead(canvas1Ref.current, audioBuffer1, progress);
+      }
+
+      if (progress < 100) {
+        animationFrame1Ref.current = requestAnimationFrame(animate);
+      }
+    };
+    animate();
+  };
+
+  const togglePlay1 = () => {
+    if (!audioBuffer1) return;
+
+    if (playing1 && audioSource1) {
+      // Pause - stop playing and save current position
+      audioSource1.stop();
+      setAudioSource1(null);
+      setPlaying1(false);
+      if (animationFrame1Ref.current) {
+        cancelAnimationFrame(animationFrame1Ref.current);
+      }
+      // Calculate current position and save it
+      const elapsed = audioCtxRef.current.currentTime - startTime1Ref.current;
+      offset1Ref.current = offset1Ref.current + elapsed;
     } else {
-      // Start playing
-      const source = audioCtxRef.current.createBufferSource();
-      source.buffer = audioBuffer1;
-      source.connect(audioCtxRef.current.destination);
-      startTime1Ref.current = audioCtxRef.current.currentTime;
-      source.start(0);
-
-      source.onended = () => {
-        setPlaying1(false);
-        setAudioSource1(null);
-        if (animationFrame1Ref.current) {
-          cancelAnimationFrame(animationFrame1Ref.current);
-        }
-        // Redraw without playhead
-        if (waveformData1Ref.current) {
-          drawWaveformStatic(canvas1Ref.current, audioBuffer1, waveformData1Ref);
-        }
-      };
-
-      setAudioSource1(source);
-      setPlaying1(true);
-
-      // Animation loop for playhead
-      const animate = () => {
-        const elapsed = audioCtxRef.current.currentTime - startTime1Ref.current;
-        const progress = (elapsed / audioBuffer1.duration) * 100;
-
-        if (progress <= 100 && canvas1Ref.current && audioBuffer1) {
-          drawPlayhead(canvas1Ref.current, audioBuffer1, progress);
-        }
-
-        if (progress < 100) {
-          animationFrame1Ref.current = requestAnimationFrame(animate);
-        }
-      };
-      animate();
+      // Resume from current offset
+      playFromPosition1(offset1Ref.current);
     }
   };
 
-  const togglePlay2 = () => {
+  const handleCanvas1Click = (e) => {
+    if (!audioBuffer1 || !canvas1Ref.current) return;
+
+    const rect = canvas1Ref.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percent = (x / rect.width) * 100;
+    const offsetSeconds = (percent / 100) * audioBuffer1.duration;
+
+    offset1Ref.current = offsetSeconds;
+
+    if (playing1) {
+      // If playing, restart from new position
+      playFromPosition1(offsetSeconds);
+    } else {
+      // If paused, just update the visual
+      drawPlayhead(canvas1Ref.current, audioBuffer1, percent);
+    }
+  };
+
+  const playFromPosition2 = (offsetSeconds) => {
     if (!audioBuffer2) return;
 
+    // Stop current playback if playing
     if (playing2 && audioSource2) {
-      // Stop playing
       audioSource2.stop();
-      setAudioSource2(null);
+      if (animationFrame2Ref.current) {
+        cancelAnimationFrame(animationFrame2Ref.current);
+      }
+    }
+
+    // Start playing from offset
+    const source = audioCtxRef.current.createBufferSource();
+    source.buffer = audioBuffer2;
+    source.connect(audioCtxRef.current.destination);
+    startTime2Ref.current = audioCtxRef.current.currentTime;
+    offset2Ref.current = offsetSeconds;
+    source.start(0, offsetSeconds);
+
+    source.onended = () => {
       setPlaying2(false);
+      setAudioSource2(null);
+      offset2Ref.current = 0;
       if (animationFrame2Ref.current) {
         cancelAnimationFrame(animationFrame2Ref.current);
       }
@@ -202,43 +255,64 @@ function Studio() {
       if (waveformData2Ref.current) {
         drawWaveformStatic(canvas2Ref.current, audioBuffer2, waveformData2Ref);
       }
+    };
+
+    setAudioSource2(source);
+    setPlaying2(true);
+
+    // Animation loop for playhead
+    const animate = () => {
+      const elapsed = audioCtxRef.current.currentTime - startTime2Ref.current;
+      const currentTime = offset2Ref.current + elapsed;
+      const progress = (currentTime / audioBuffer2.duration) * 100;
+
+      if (progress <= 100 && canvas2Ref.current && audioBuffer2) {
+        drawPlayhead(canvas2Ref.current, audioBuffer2, progress);
+      }
+
+      if (progress < 100) {
+        animationFrame2Ref.current = requestAnimationFrame(animate);
+      }
+    };
+    animate();
+  };
+
+  const togglePlay2 = () => {
+    if (!audioBuffer2) return;
+
+    if (playing2 && audioSource2) {
+      // Pause - stop playing and save current position
+      audioSource2.stop();
+      setAudioSource2(null);
+      setPlaying2(false);
+      if (animationFrame2Ref.current) {
+        cancelAnimationFrame(animationFrame2Ref.current);
+      }
+      // Calculate current position and save it
+      const elapsed = audioCtxRef.current.currentTime - startTime2Ref.current;
+      offset2Ref.current = offset2Ref.current + elapsed;
     } else {
-      // Start playing
-      const source = audioCtxRef.current.createBufferSource();
-      source.buffer = audioBuffer2;
-      source.connect(audioCtxRef.current.destination);
-      startTime2Ref.current = audioCtxRef.current.currentTime;
-      source.start(0);
+      // Resume from current offset
+      playFromPosition2(offset2Ref.current);
+    }
+  };
 
-      source.onended = () => {
-        setPlaying2(false);
-        setAudioSource2(null);
-        if (animationFrame2Ref.current) {
-          cancelAnimationFrame(animationFrame2Ref.current);
-        }
-        // Redraw without playhead
-        if (waveformData2Ref.current) {
-          drawWaveformStatic(canvas2Ref.current, audioBuffer2, waveformData2Ref);
-        }
-      };
+  const handleCanvas2Click = (e) => {
+    if (!audioBuffer2 || !canvas2Ref.current) return;
 
-      setAudioSource2(source);
-      setPlaying2(true);
+    const rect = canvas2Ref.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const percent = (x / rect.width) * 100;
+    const offsetSeconds = (percent / 100) * audioBuffer2.duration;
 
-      // Animation loop for playhead
-      const animate = () => {
-        const elapsed = audioCtxRef.current.currentTime - startTime2Ref.current;
-        const progress = (elapsed / audioBuffer2.duration) * 100;
+    offset2Ref.current = offsetSeconds;
 
-        if (progress <= 100 && canvas2Ref.current && audioBuffer2) {
-          drawPlayhead(canvas2Ref.current, audioBuffer2, progress);
-        }
-
-        if (progress < 100) {
-          animationFrame2Ref.current = requestAnimationFrame(animate);
-        }
-      };
-      animate();
+    if (playing2) {
+      // If playing, restart from new position
+      playFromPosition2(offsetSeconds);
+    } else {
+      // If paused, just update the visual
+      drawPlayhead(canvas2Ref.current, audioBuffer2, percent);
     }
   };
 
@@ -248,6 +322,7 @@ function Studio() {
     setError(null);
     setProgress1(0);
     setPlaying1(false);
+    offset1Ref.current = 0;
     if (audioSource1) {
       audioSource1.stop();
       setAudioSource1(null);
@@ -266,6 +341,7 @@ function Studio() {
     setError(null);
     setProgress2(0);
     setPlaying2(false);
+    offset2Ref.current = 0;
     if (audioSource2) {
       audioSource2.stop();
       setAudioSource2(null);
@@ -368,6 +444,7 @@ function Studio() {
                       <canvas
                         ref={canvas1Ref}
                         className="waveform-canvas"
+                        onClick={handleCanvas1Click}
                       ></canvas>
                       <button
                         className="play-button"
@@ -437,6 +514,7 @@ function Studio() {
                       <canvas
                         ref={canvas2Ref}
                         className="waveform-canvas"
+                        onClick={handleCanvas2Click}
                       ></canvas>
                       <button
                         className="play-button"
