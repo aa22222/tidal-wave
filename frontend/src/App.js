@@ -1,3 +1,69 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import Landing from './pages/Landing';
+import Studio from './pages/Studio';
+import './App.css';
+
+// NEW APP - Music Editor Theme
+function App() {
+  return (
+    <Router>
+      <div className="App">
+        <Navbar />
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/studio" element={<Studio />} />
+          <Route path="/about" element={<About />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
+
+function About() {
+  return (
+    <div style={{
+      background: 'linear-gradient(135deg, #0a0a0f 0%, #16213e 50%, #0a0a0f 100%)',
+      minHeight: 'calc(100vh - 80px)',
+      color: '#fff',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '4rem 2rem'
+    }}>
+      <div style={{ textAlign: 'center', maxWidth: '600px' }}>
+        <h1 style={{
+          fontSize: '3rem',
+          marginBottom: '1.5rem',
+          fontFamily: 'Courier New, monospace'
+        }}>
+          About <span style={{
+            background: 'linear-gradient(135deg, #00d4ff 0%, #00ff88 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+          }}>TidalWave</span>
+        </h1>
+        <p style={{
+          fontSize: '1.1rem',
+          color: '#a8b2d1',
+          lineHeight: '1.8'
+        }}>
+          Professional music analysis tool. Upload your recording alongside a reference track
+          to receive AI-powered feedback on tempo, pitch, timing, and technique.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default App;
+
+/* ========================================
+   ORIGINAL PURPLE GRADIENT VERSION (COMMENTED OUT)
+   ========================================
+
 import React, { useState } from 'react';
 import './App.css';
 
@@ -9,13 +75,17 @@ function App() {
   const [error, setError] = useState(null);
 
   const handleFile1Change = (e) => {
-    setFile1(e.target.files[0]);
-    setError(null);
+    const file = e.target.files[0];
+    if(file.type.startsWith('audio/')) setError(null);
+    else setError("First file is not an audio file.");
+    setFile1(file);
   };
 
   const handleFile2Change = (e) => {
+    const file = e.target.files[0];
+    if(file.type.startsWith('audio/')) setError(null);
+    else setError("Second file is not an audio file.");
     setFile2(e.target.files[0]);
-    setError(null);
   };
 
   const handleSubmit = async (e) => {
@@ -38,7 +108,7 @@ function App() {
 
     try {
       // Send POST request to backend
-      const response = await fetch('http://localhost:5000/api/upload', {
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
@@ -110,8 +180,8 @@ function App() {
             )}
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             disabled={uploading || !file1 || !file2}
             className="upload-button"
           >
@@ -147,3 +217,5 @@ function App() {
 }
 
 export default App;
+
+======================================== */
