@@ -85,7 +85,7 @@ app.post('/api/upload', async (req, res) => {
 
       // Clean up uploaded files (optional)
       fs.unlinkSync(file1Path);
-      fs.unlinkSync(file2Path);
+      if(file1Path != file2Path) fs.unlinkSync(file2Path);
 
       res.json({
         message: 'Files processed successfully',
