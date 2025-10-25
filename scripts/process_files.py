@@ -55,8 +55,12 @@ def compute_mel_spectrogram(y, sr, n_mels, hop_length):
     S_db = 10 * np.log10(S_mel + 1e-10)
     return S_db
 
-def get_match(parent, clip):
-    logP_parent = compute_mel_spectrogram(parent, sr, n_mels, hop_length)
+def get_match(parent, clip, precomp=False):
+    if precomp: 
+        logP_parent = parent
+    else: 
+        log_parent = compute_mel_spectrogram(parent, sr, n_mels, hop_length)
+
     logP_clip   = compute_mel_spectrogram(clip, sr, n_mels, hop_length)
 
     X = logP_parent.T
@@ -100,7 +104,6 @@ def process_files(file1_path, file2_path):
 
     # Load WAV audio (librosa handles .wav natively)
     try:
-        sr = 22050  # standard sampling rate
         parent, _ = load_audio(file1_path, target_sr=sr, mono=True)
         clip, _ = load_audio(file2_path, target_sr=sr, mono=True)
     except Exception as e:
@@ -110,15 +113,31 @@ def process_files(file1_path, file2_path):
     print("Audio loaded successfully.")
     print(f"Parent length: {len(parent)} samples, Clip length: {len(clip)} samples")
 
-    start_time, end_time = get_match(parent, clip)
+    CLIP_LENGTH = 1 #seconds
+
+    # split child into CLIP_LENGTH clips
+    clips = []
+    clip_len_samples = int(CLIP_LENGTH * sr)
+    for i in range(0, len(clip) - clip_len_samples + 1, clip_len_samples):
+        clips.append(clip[i:i+clip_len_samples])
+    if(len(clip) % clip_len_samples != 0):
+        clips.append(clip[-(len(clip) % clip_len_samples):])
+    
+    starts = []
+    ends = []
+    parent_precomp = compute_mel_spectrogram(parent)
+    for clip in clips:
+        start_time, end_time = get_match(parent_precomp, clip, precomp=True)
+        starts.append(start_time)
+        ends.append(end_time)
 
     print("Processing completed successfully.")
-    print(f"Clip best matches parent between {start_time:.2f}s and {end_time:.2f}s")
 
     result = {
         "status": "success",
-        "start_time": start_time,
-        "end_time": end_time,
+        "start_times": starts,
+        "end_times": ends,
+        "length": CLIP_LENGTH
     }
     print(json.dumps(result))
 
