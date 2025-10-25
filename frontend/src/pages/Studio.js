@@ -9,13 +9,37 @@ function Studio() {
   const [error, setError] = useState(null);
 
   const handleFile1Change = (e) => {
-    setFile1(e.target.files[0]);
-    setError(null);
+    const file = e.target.files[0];
+    console.log('Track A file selected:', file?.name, 'Type:', file?.type);
+    if (file) {
+      // Accept audio files and webm files (which may be video/webm or audio/webm)
+      if (file.type.startsWith('audio/') || file.type === 'video/webm' || file.name.endsWith('.webm')) {
+        console.log('Track A file accepted');
+        setFile1(file);
+        setError(null);
+      } else {
+        console.log('Track A file rejected');
+        setError('Track A: Please select an audio file (WAV, MP3, WebM, etc.)');
+        setFile1(null);
+      }
+    }
   };
 
   const handleFile2Change = (e) => {
-    setFile2(e.target.files[0]);
-    setError(null);
+    const file = e.target.files[0];
+    console.log('Track B file selected:', file?.name, 'Type:', file?.type);
+    if (file) {
+      // Accept audio files and webm files (which may be video/webm or audio/webm)
+      if (file.type.startsWith('audio/') || file.type === 'video/webm' || file.name.endsWith('.webm')) {
+        console.log('Track B file accepted');
+        setFile2(file);
+        setError(null);
+      } else {
+        console.log('Track B file rejected');
+        setError('Track B: Please select an audio file (WAV, MP3, WebM, etc.)');
+        setFile2(null);
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -124,6 +148,7 @@ function Studio() {
                   <input
                     id="file1-input"
                     type="file"
+                    accept="audio/*,.webm"
                     onChange={handleFile1Change}
                     disabled={uploading}
                     className="file-input-hidden"
@@ -182,6 +207,7 @@ function Studio() {
                   <input
                     id="file2-input"
                     type="file"
+                    accept="audio/*,.webm"
                     onChange={handleFile2Change}
                     disabled={uploading}
                     className="file-input-hidden"
