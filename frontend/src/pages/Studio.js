@@ -40,10 +40,36 @@ function Studio() {
     };
   }, []);
 
-  // Generate rainbow colors for segments
-  const getRainbowColor = (index, total) => {
-    const hue = (index / total) * 360;
+  // Generate rainbow colors based on position or segment index
+  const getRainbowColorByPosition = (position) => {
+    // position is 0 to 1
+    const hue = position * 360;
     return `hsl(${hue}, 80%, 60%)`;
+  };
+
+  const getRainbowColorBySegment = (segmentIndex, totalSegments) => {
+    const hue = (segmentIndex / totalSegments) * 360;
+    return `hsl(${hue}, 80%, 60%)`;
+  };
+
+  // Format output text with rainbow-colored segment lines
+  const formatOutputWithRainbow = (text) => {
+    const lines = text.split('\n');
+    const totalSegments = lines.filter(line => line.trim().startsWith('Segment ')).length;
+
+    return lines.map((line, index) => {
+      const match = line.match(/^Segment (\d+):/);
+      if (match) {
+        const segmentNum = parseInt(match[1]);
+        const color = getRainbowColorBySegment(segmentNum, totalSegments);
+        return (
+          <div key={index} style={{ color }}>
+            {line}
+          </div>
+        );
+      }
+      return <div key={index}>{line}</div>;
+    });
   };
 
   const drawWaveformStatic = (canvas, buffer, waveformDataRef, isTrack1 = true) => {
@@ -70,53 +96,52 @@ function Studio() {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw waveform with segment colors
+    // Check if we have segment data
     const segmentData = segmentsRef.current;
-    console.log('Drawing with segments:', segmentData ? 'YES' : 'NO', isTrack1 ? 'Track1' : 'Track2');
+    const hasSegments = segmentData && segmentData.segments && segmentData.segments.length > 0;
 
-    if (segmentData && segmentData.segments && segmentData.segments.length > 0) {
-      const segmentArray = segmentData.segments;
-      const totalSegments = segmentArray.length;
-      console.log('Total segments:', totalSegments);
+    if (hasSegments) {
+      console.log(`Drawing ${isTrack1 ? 'Track1' : 'Track2'} with ${segmentData.segments.length} segments`);
+    }
 
-      for (let i = 0; i < canvas.width; i++) {
-        const currentTime = (i / canvas.width) * duration;
+    // Draw waveform with rainbow gradient (segment-based if available)
+    for (let i = 0; i < canvas.width; i++) {
+      const currentTime = (i / canvas.width) * duration;
+      let color;
 
+      if (hasSegments) {
         // Find which segment this pixel belongs to
         let segmentIndex = 0;
+        const segmentArray = segmentData.segments;
+
         for (let s = 0; s < segmentArray.length; s++) {
           const timeRange = isTrack1 ? segmentArray[s].master_time : segmentArray[s].performer_time_range;
-          if (currentTime >= timeRange[0] && currentTime <= timeRange[1]) {
+          if (currentTime >= timeRange[0] && currentTime < timeRange[1]) {
             segmentIndex = s;
             break;
           }
+          // If past the last segment's end, use the last segment color
+          if (s === segmentArray.length - 1 && currentTime >= timeRange[1]) {
+            segmentIndex = s;
+          }
         }
 
-        const color = getRainbowColor(segmentIndex, totalSegments);
-        const segment = data.slice(i * step, (i + 1) * step);
-        const min = Math.min(...segment);
-        const max = Math.max(...segment);
-
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(i, (1 + min) * amp);
-        ctx.lineTo(i, (1 + max) * amp);
-        ctx.stroke();
+        color = getRainbowColorBySegment(segmentIndex, segmentArray.length);
+      } else {
+        // Default rainbow gradient by position
+        const position = i / canvas.width;
+        color = getRainbowColorByPosition(position);
       }
-    } else {
-      // Default single color if no segments
+
+      const segment = data.slice(i * step, (i + 1) * step);
+      const min = Math.min(...segment);
+      const max = Math.max(...segment);
+
+      ctx.strokeStyle = color;
       ctx.lineWidth = 2;
-      ctx.strokeStyle = '#0099ff';
       ctx.beginPath();
-
-      for (let i = 0; i < canvas.width; i++) {
-        const segment = data.slice(i * step, (i + 1) * step);
-        const min = Math.min(...segment);
-        const max = Math.max(...segment);
-        ctx.moveTo(i, (1 + min) * amp);
-        ctx.lineTo(i, (1 + max) * amp);
-      }
+      ctx.moveTo(i, (1 + min) * amp);
+      ctx.lineTo(i, (1 + max) * amp);
       ctx.stroke();
     }
   };
@@ -134,51 +159,48 @@ function Studio() {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Redraw waveform with segment colors
+    // Check if we have segment data
     const segmentData = segmentsRef.current;
+    const hasSegments = segmentData && segmentData.segments && segmentData.segments.length > 0;
 
-    if (segmentData && segmentData.segments && segmentData.segments.length > 0) {
-      const segmentArray = segmentData.segments;
-      const totalSegments = segmentArray.length;
+    // Redraw waveform with rainbow gradient (segment-based if available)
+    for (let i = 0; i < canvas.width; i++) {
+      const currentTime = (i / canvas.width) * duration;
+      let color;
 
-      for (let i = 0; i < canvas.width; i++) {
-        const currentTime = (i / canvas.width) * duration;
-
+      if (hasSegments) {
         // Find which segment this pixel belongs to
         let segmentIndex = 0;
+        const segmentArray = segmentData.segments;
+
         for (let s = 0; s < segmentArray.length; s++) {
           const timeRange = isTrack1 ? segmentArray[s].master_time : segmentArray[s].performer_time_range;
-          if (currentTime >= timeRange[0] && currentTime <= timeRange[1]) {
+          if (currentTime >= timeRange[0] && currentTime < timeRange[1]) {
             segmentIndex = s;
             break;
           }
+          // If past the last segment's end, use the last segment color
+          if (s === segmentArray.length - 1 && currentTime >= timeRange[1]) {
+            segmentIndex = s;
+          }
         }
 
-        const color = getRainbowColor(segmentIndex, totalSegments);
-        const segment = data.slice(i * step, (i + 1) * step);
-        const min = Math.min(...segment);
-        const max = Math.max(...segment);
-
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(i, (1 + min) * amp);
-        ctx.lineTo(i, (1 + max) * amp);
-        ctx.stroke();
+        color = getRainbowColorBySegment(segmentIndex, segmentArray.length);
+      } else {
+        // Default rainbow gradient by position
+        const position = i / canvas.width;
+        color = getRainbowColorByPosition(position);
       }
-    } else {
-      // Default single color if no segments
+
+      const segment = data.slice(i * step, (i + 1) * step);
+      const min = Math.min(...segment);
+      const max = Math.max(...segment);
+
+      ctx.strokeStyle = color;
       ctx.lineWidth = 2;
-      ctx.strokeStyle = '#0099ff';
       ctx.beginPath();
-
-      for (let i = 0; i < canvas.width; i++) {
-        const segment = data.slice(i * step, (i + 1) * step);
-        const min = Math.min(...segment);
-        const max = Math.max(...segment);
-        ctx.moveTo(i, (1 + min) * amp);
-        ctx.lineTo(i, (1 + max) * amp);
-      }
+      ctx.moveTo(i, (1 + min) * amp);
+      ctx.lineTo(i, (1 + max) * amp);
       ctx.stroke();
     }
 
@@ -468,35 +490,22 @@ function Studio() {
 
       setResult(data);
 
-      // Store segment data for color coding
+      // Store segment data if available
       if (data.result && typeof data.result === 'string') {
         try {
           const analysisData = JSON.parse(data.result);
           if (analysisData.segments) {
             setSegments(analysisData);
-            segmentsRef.current = analysisData; // Store in ref for immediate access
-            console.log('Segments loaded:', analysisData.segments.length);
-            console.log('First segment:', analysisData.segments[0]);
-
-            // Redraw waveforms with segment colors
-            setTimeout(() => {
-              if (audioBuffer1 && canvas1Ref.current) {
-                console.log('Redrawing track 1 with segments');
-                drawWaveformStatic(canvas1Ref.current, audioBuffer1, waveformData1Ref, true);
-              }
-              if (audioBuffer2 && canvas2Ref.current) {
-                console.log('Redrawing track 2 with segments');
-                drawWaveformStatic(canvas2Ref.current, audioBuffer2, waveformData2Ref, false);
-              }
-            }, 100);
+            segmentsRef.current = analysisData;
           }
         } catch (parseError) {
           console.error('Error parsing analysis data:', parseError);
         }
       }
 
-      setFile1(null);
-      setFile2(null);
+      // Don't clear files - keep them so waveforms stay visible
+      // setFile1(null);
+      // setFile2(null);
 
       // Clear file inputs
       document.getElementById('file1-input').value = '';
@@ -767,7 +776,9 @@ function Studio() {
 
                     <div className="detail-section">
                       <div className="detail-title">Processing Output:</div>
-                      <pre className="detail-output">{result.result}</pre>
+                      <div className="detail-output" style={{ fontFamily: 'monospace', whiteSpace: 'pre' }}>
+                        {formatOutputWithRainbow(result.result)}
+                      </div>
                     </div>
                   </div>
                 </div>
