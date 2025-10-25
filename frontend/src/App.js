@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Landing from './pages/Landing';
 import Studio from './pages/Studio';
@@ -17,43 +17,6 @@ function App() {
         </Routes>
       </div>
     </Router>
-  );
-}
-
-function About() {
-  return (
-    <div style={{
-      background: 'linear-gradient(135deg, #0a0a0f 0%, #16213e 50%, #0a0a0f 100%)',
-      minHeight: 'calc(100vh - 80px)',
-      color: '#fff',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '4rem 2rem'
-    }}>
-      <div style={{ textAlign: 'center', maxWidth: '600px' }}>
-        <h1 style={{
-          fontSize: '3rem',
-          marginBottom: '1.5rem',
-          fontFamily: 'Courier New, monospace'
-        }}>
-          About <span style={{
-            background: 'linear-gradient(135deg, #00d4ff 0%, #00ff88 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
-          }}>TidalWave</span>
-        </h1>
-        <p style={{
-          fontSize: '1.1rem',
-          color: '#a8b2d1',
-          lineHeight: '1.8'
-        }}>
-          Professional music analysis tool. Upload your recording alongside a reference track
-          to receive AI-powered feedback on tempo, pitch, timing, and technique.
-        </p>
-      </div>
-    </div>
   );
 }
 

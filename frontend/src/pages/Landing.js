@@ -58,10 +58,10 @@ function Landing() {
             </div>
             <h1 className="hero-title">
               <span className="title-clear">Become a Piano</span>{' '}
-              <span className="title-gradient">Master.</span>
+              <span className="title-gradient">Master</span>
             </h1>
             <p className="hero-description">
-              AI that turns practice into progress, one note at a time.
+              AI that turns practice into progress, one note at a time!
             </p>
 
             <div className="hero-actions">
