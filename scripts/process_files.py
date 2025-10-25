@@ -142,10 +142,15 @@ def segment_analysis(master_seg, performer_seg, sr, s_start, s_end, seg_id, outd
     loud_diff = rms_p - rms_m
 
     # Export segments
-    # m_path = os.path.join(outdir, f"master_seg_{seg_id}.wav")
-    # p_path = os.path.join(outdir, f"performer_seg_{seg_id}.wav")
-    # sf.write(m_path, master_aligned, sr)
-    # sf.write(p_path, performer_aligned, sr)
+    m_path = os.path.join(outdir, f"master_seg_{seg_id}.wav")
+    p_path = os.path.join(outdir, f"performer_seg_{seg_id}.wav")
+    sf.write(m_path, master_aligned, sr)
+    sf.write(p_path, performer_aligned, sr)
+
+    # Print segment info
+    print(f"Segment {seg_id}: {s_start:.1f}s - {s_end:.1f}s | "
+          f"Tempo Diff: {tempo_diff:+.2f}% | "
+          f"Loudness Diff: {loud_diff:+.2f} dB")
 
     return {
         "segment_id": seg_id,
@@ -158,13 +163,16 @@ def segment_analysis(master_seg, performer_seg, sr, s_start, s_end, seg_id, outd
         "loudness_db_diff": round(float(loud_diff), 3),
         "alignment_cost_mean": round(float(avg_cost), 5),
         "alignment_rmse": round(float(rmse), 5),
-        # "master_segment_file": m_path,
-        # "performer_segment_file": p_path,
+        "master_segment_file": m_path,
+        "performer_segment_file": p_path,
     }
 
 
 def process_files(m_path, p_path, seg_len=10, output_json="analysis_results.json"):
-    """Process files and save results to JSON without printing."""
+    """Process files with simple printing for each segment."""
+    
+    print(f"\nAnalyzing: {m_path} vs {p_path}")
+    print("=" * 70)
     
     sr = 22050
     
@@ -176,7 +184,7 @@ def process_files(m_path, p_path, seg_len=10, output_json="analysis_results.json
 
     # Setup
     seg_samples = int(seg_len * sr)
-    # os.makedirs("segments_output", exist_ok=True)
+    os.makedirs("segments_output", exist_ok=True)
     segments = []
 
     # Process segments
@@ -214,10 +222,19 @@ def process_files(m_path, p_path, seg_len=10, output_json="analysis_results.json
         )
         segments.append(result)
 
-    # Calculate statistics
+    # Calculate and print statistics
+    print("=" * 70)
     if segments:
         tempo_diffs = [s["tempo_diff_percent"] for s in segments]
         loud_diffs = [s["loudness_db_diff"] for s in segments]
+        
+        print(f"\nSummary Statistics ({len(segments)} segments):")
+        print(f"  Tempo Difference:    mean={np.mean(tempo_diffs):+.2f}%  "
+              f"std={np.std(tempo_diffs):.2f}%  "
+              f"range=[{np.min(tempo_diffs):+.2f}%, {np.max(tempo_diffs):+.2f}%]")
+        print(f"  Loudness Difference: mean={np.mean(loud_diffs):+.2f}dB  "
+              f"std={np.std(loud_diffs):.2f}dB  "
+              f"range=[{np.min(loud_diffs):+.2f}dB, {np.max(loud_diffs):+.2f}dB]")
         
         summary = {
             "status": "success",
@@ -242,18 +259,18 @@ def process_files(m_path, p_path, seg_len=10, output_json="analysis_results.json
         summary = {"status": "no_valid_segments", "segments": []}
     
     # Save to JSON file
-    # with open(output_json, 'w') as f:
-    #     json.dump(summary, f, indent=4)
+    with open(output_json, 'w') as f:
+        json.dump(summary, f, indent=4)
     
-    print(json.dumps(summary))
+    print(f"\nResults saved to: {output_json}\n")
+    
     return summary
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        print("Usage: python audio_compare_v2.py <master.wav> <performer.wav> [output.json]")
+        print("Usage: python audio_compare_simple.py <master.wav> <performer.wav> [output.json]")
         sys.exit(1)
     
     output_json = sys.argv[3] if len(sys.argv) > 3 else "analysis_results.json"
     process_files(sys.argv[1], sys.argv[2], output_json=output_json)
-    # print(f"Analysis complete. Results saved to {output_json}")
