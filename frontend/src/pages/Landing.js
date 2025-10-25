@@ -5,9 +5,42 @@ import './Landing.css';
 function Landing() {
   return (
     <div className="landing">
+      {/* Floating musical notes across the landing page */}
+      <div className="floating-notes" aria-hidden="true">
+        {[...Array(6)].map((_, i) => (
+          <div
+            key={i}
+            className={`floating-note note-${(i % 4) + 1}`}
+            style={{
+              left: `${Math.random() * 88 + 4}%`,
+              bottom: `${Math.random() * 120 - 10}%`,
+              animationDelay: `${(Math.random() * 6).toFixed(2)}s`
+            }}
+          >
+            <svg viewBox="0 0 24 24" className="note-svg" aria-hidden="true">
+              <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" />
+            </svg>
+          </div>
+        ))}
+      </div>
+
       <div className="landing-container">
         {/* Hero Section */}
         <div className="hero-section">
+          {/* Floating musical notes in background */}
+          <div className="floating-notes" aria-hidden="true">
+            {[...Array(6)].map((_, i) => (
+              <div
+                key={i}
+                className={`floating-note note-${(i % 4) + 1}`}
+                style={{ left: `${8 + i * 15}%`, animationDelay: `${i * 0.8}s` }}
+              >
+                <svg viewBox="0 0 24 24" className="note-svg" aria-hidden="true">
+                  <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" />
+                </svg>
+              </div>
+            ))}
+          </div>
           <div className="waveform-visualizer">
             {[...Array(40)].map((_, i) => (
               <div
@@ -24,7 +57,8 @@ function Landing() {
               AUDIO PROCESSING SUITE
             </div>
             <h1 className="hero-title">
-              Create. Process. <span className="title-gradient">Master.</span>
+              <span className="title-clear">Create. Process.</span>{' '}
+              <span className="title-gradient">Master.</span>
             </h1>
             <p className="hero-description">
               Professional-grade file processing engine designed for audio producers,
@@ -42,6 +76,7 @@ function Landing() {
               </button>
             </div>
 
+            <div className="cta-subtext">No account required — start in seconds</div>
             <div className="hero-stats">
               <div className="stat-item">
                 <div className="stat-value">192kHz</div>
@@ -61,65 +96,7 @@ function Landing() {
           </div>
         </div>
 
-        {/* Features Section */}
-        <div className="features-section">
-          <div className="section-header">
-            <div className="section-tag">FEATURES</div>
-            <h2 className="section-title">Studio-Grade Tools</h2>
-          </div>
-
-          <div className="features-grid">
-            <div className="feature-card">
-              <div className="feature-icon">
-                <div className="icon-track track-1"></div>
-                <div className="icon-track track-2"></div>
-                <div className="icon-track track-3"></div>
-              </div>
-              <h3 className="feature-title">Multi-Track Processing</h3>
-              <p className="feature-description">
-                Process multiple files simultaneously with real-time monitoring
-                and visual feedback.
-              </p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon spectrum">
-                {[...Array(8)].map((_, i) => (
-                  <div key={i} className="spectrum-bar"></div>
-                ))}
-              </div>
-              <h3 className="feature-title">Spectrum Analysis</h3>
-              <p className="feature-description">
-                Advanced analytics engine with detailed metadata extraction
-                and content inspection.
-              </p>
-            </div>
-
-            <div className="feature-card">
-              <div className="feature-icon waveform">
-                <svg viewBox="0 0 100 40" className="wave-svg">
-                  <path
-                    d="M 0 20 Q 10 5, 20 20 T 40 20 T 60 20 T 80 20 T 100 20"
-                    fill="none"
-                    stroke="url(#gradient)"
-                    strokeWidth="3"
-                  />
-                  <defs>
-                    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#00d4ff" />
-                      <stop offset="100%" stopColor="#0099ff" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-              </div>
-              <h3 className="feature-title">Real-Time Processing</h3>
-              <p className="feature-description">
-                Lightning-fast processing engine with instant feedback
-                and zero-latency workflow.
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* Features section removed as requested */}
 
         {/* Console Section */}
         <div className="console-section">
