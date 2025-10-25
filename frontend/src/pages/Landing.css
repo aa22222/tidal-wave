@@ -14,7 +14,7 @@
 /* Hero Section */
 .hero-section {
   position: relative;
-  padding: 4rem 0;
+  padding: 6rem 0;
   overflow: hidden;
 }
 
@@ -30,6 +30,61 @@
   gap: 4px;
   opacity: 0.15;
   z-index: 0;
+}
+
+/* Floating musical notes background */
+.floating-notes {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.floating-note {
+  position: absolute;
+  width: 18px; /* reduced base size to be much subtler */
+  opacity: 0.12;
+  transform-origin: center;
+  filter: drop-shadow(0 4px 8px rgba(0,0,0,0.15));
+  animation-name: floatUp;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+.floating-note .note-svg {
+  width: 100%;
+  height: auto;
+  fill: rgba(230, 251, 255, 0.92);
+  mix-blend-mode: screen;
+  filter: blur(0.2px) saturate(115%);
+}
+
+.note-1 { animation-duration: 10s; }
+.note-2 { animation-duration: 12s; transform: scale(0.85); }
+.note-3 { animation-duration: 9s; transform: scale(0.95); }
+.note-4 { animation-duration: 14s; transform: scale(0.8); }
+
+@keyframes floatUp {
+  0% {
+    transform: translateY(0) rotate(0deg) scale(0.85);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.18;
+  }
+  50% {
+    transform: translateY(-110%) rotate(12deg) scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-220%) rotate(-8deg) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .floating-note { animation: none; opacity: 0.08; }
 }
 
 .waveform-bar {
@@ -88,6 +143,12 @@
   line-height: 1.2;
   margin-bottom: 1.5rem;
   letter-spacing: -1px;
+}
+
+.title-clear {
+  color: #e6fbff; /* clearer, pale-cyan for high contrast */
+  -webkit-text-fill-color: #e6fbff;
+  text-shadow: 0 2px 12px rgba(230, 251, 255, 0.06);
 }
 
 .title-gradient {
@@ -223,7 +284,7 @@
   font-weight: 600;
   letter-spacing: 3px;
   margin-bottom: 1rem;
-  font-family: 'Play', 'Courier New', sans-serif;
+  font-family: 'Courier New', monospace;
 }
 
 .section-title {
