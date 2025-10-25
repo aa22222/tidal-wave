@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import './Studio.css';
 
 function Studio() {
@@ -7,38 +7,274 @@ function Studio() {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [audioBuffer1, setAudioBuffer1] = useState(null);
+  const [audioBuffer2, setAudioBuffer2] = useState(null);
+  const [audioSource1, setAudioSource1] = useState(null);
+  const [audioSource2, setAudioSource2] = useState(null);
+  const [playing1, setPlaying1] = useState(false);
+  const [playing2, setPlaying2] = useState(false);
+  const [progress1, setProgress1] = useState(0);
+  const [progress2, setProgress2] = useState(0);
+
+  const canvas1Ref = useRef(null);
+  const canvas2Ref = useRef(null);
+  const audioCtxRef = useRef(null);
+  const startTime1Ref = useRef(0);
+  const startTime2Ref = useRef(0);
+  const animationFrame1Ref = useRef(null);
+  const animationFrame2Ref = useRef(null);
+  const waveformData1Ref = useRef(null);
+  const waveformData2Ref = useRef(null);
+
+  // Initialize audio context
+  useEffect(() => {
+    audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    return () => {
+      if (audioCtxRef.current) {
+        audioCtxRef.current.close();
+      }
+    };
+  }, []);
+
+  const drawWaveformStatic = (canvas, buffer, waveformDataRef) => {
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const data = buffer.getChannelData(0);
+    const step = Math.ceil(data.length / canvas.width);
+    const amp = canvas.height / 2;
+
+    console.log('Drawing waveform:', {
+      canvasWidth: canvas.width,
+      canvasHeight: canvas.height,
+      dataLength: data.length,
+      step
+    });
+
+    // Store waveform drawing data for redrawing with playhead
+    waveformDataRef.current = { buffer, canvas };
+
+    // Clear and fill background
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Draw waveform
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#0099ff';
+    ctx.beginPath();
+
+    for (let i = 0; i < canvas.width; i++) {
+      const segment = data.slice(i * step, (i + 1) * step);
+      const min = Math.min(...segment);
+      const max = Math.max(...segment);
+      ctx.moveTo(i, (1 + min) * amp);
+      ctx.lineTo(i, (1 + max) * amp);
+    }
+    ctx.stroke();
+  };
+
+  const drawPlayhead = (canvas, buffer, progress) => {
+    if (!canvas || !buffer) return;
+
+    const ctx = canvas.getContext('2d');
+    const data = buffer.getChannelData(0);
+    const step = Math.ceil(data.length / canvas.width);
+    const amp = canvas.height / 2;
+
+    // Clear canvas
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Redraw waveform
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#0099ff';
+    ctx.beginPath();
+
+    for (let i = 0; i < canvas.width; i++) {
+      const segment = data.slice(i * step, (i + 1) * step);
+      const min = Math.min(...segment);
+      const max = Math.max(...segment);
+      ctx.moveTo(i, (1 + min) * amp);
+      ctx.lineTo(i, (1 + max) * amp);
+    }
+    ctx.stroke();
+
+    // Draw red playhead
+    const playheadX = (progress / 100) * canvas.width;
+    ctx.strokeStyle = '#ff0055';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(playheadX, 0);
+    ctx.lineTo(playheadX, canvas.height);
+    ctx.stroke();
+  };
+
+  const generateWaveform = async (file, canvasRef, setAudioBuffer, waveformDataRef) => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const audioBuffer = await audioCtxRef.current.decodeAudioData(arrayBuffer);
+
+      setAudioBuffer(audioBuffer);
+
+      // Wait for next frame to ensure canvas is rendered
+      setTimeout(() => {
+        if (canvasRef.current) {
+          const width = canvasRef.current.parentElement.offsetWidth - 60; // Account for play button
+          console.log('Canvas sizing:', { width, parentWidth: canvasRef.current.parentElement.offsetWidth });
+          canvasRef.current.width = width;
+          canvasRef.current.height = 120;
+          drawWaveformStatic(canvasRef.current, audioBuffer, waveformDataRef);
+        }
+      }, 100);
+    } catch (err) {
+      console.error('Error generating waveform:', err);
+      setAudioBuffer(null);
+    }
+  };
+
+  const togglePlay1 = () => {
+    if (!audioBuffer1) return;
+
+    if (playing1 && audioSource1) {
+      // Stop playing
+      audioSource1.stop();
+      setAudioSource1(null);
+      setPlaying1(false);
+      if (animationFrame1Ref.current) {
+        cancelAnimationFrame(animationFrame1Ref.current);
+      }
+      // Redraw without playhead
+      if (waveformData1Ref.current) {
+        drawWaveformStatic(canvas1Ref.current, audioBuffer1, waveformData1Ref);
+      }
+    } else {
+      // Start playing
+      const source = audioCtxRef.current.createBufferSource();
+      source.buffer = audioBuffer1;
+      source.connect(audioCtxRef.current.destination);
+      startTime1Ref.current = audioCtxRef.current.currentTime;
+      source.start(0);
+
+      source.onended = () => {
+        setPlaying1(false);
+        setAudioSource1(null);
+        if (animationFrame1Ref.current) {
+          cancelAnimationFrame(animationFrame1Ref.current);
+        }
+        // Redraw without playhead
+        if (waveformData1Ref.current) {
+          drawWaveformStatic(canvas1Ref.current, audioBuffer1, waveformData1Ref);
+        }
+      };
+
+      setAudioSource1(source);
+      setPlaying1(true);
+
+      // Animation loop for playhead
+      const animate = () => {
+        const elapsed = audioCtxRef.current.currentTime - startTime1Ref.current;
+        const progress = (elapsed / audioBuffer1.duration) * 100;
+
+        if (progress <= 100 && canvas1Ref.current && audioBuffer1) {
+          drawPlayhead(canvas1Ref.current, audioBuffer1, progress);
+        }
+
+        if (progress < 100) {
+          animationFrame1Ref.current = requestAnimationFrame(animate);
+        }
+      };
+      animate();
+    }
+  };
+
+  const togglePlay2 = () => {
+    if (!audioBuffer2) return;
+
+    if (playing2 && audioSource2) {
+      // Stop playing
+      audioSource2.stop();
+      setAudioSource2(null);
+      setPlaying2(false);
+      if (animationFrame2Ref.current) {
+        cancelAnimationFrame(animationFrame2Ref.current);
+      }
+      // Redraw without playhead
+      if (waveformData2Ref.current) {
+        drawWaveformStatic(canvas2Ref.current, audioBuffer2, waveformData2Ref);
+      }
+    } else {
+      // Start playing
+      const source = audioCtxRef.current.createBufferSource();
+      source.buffer = audioBuffer2;
+      source.connect(audioCtxRef.current.destination);
+      startTime2Ref.current = audioCtxRef.current.currentTime;
+      source.start(0);
+
+      source.onended = () => {
+        setPlaying2(false);
+        setAudioSource2(null);
+        if (animationFrame2Ref.current) {
+          cancelAnimationFrame(animationFrame2Ref.current);
+        }
+        // Redraw without playhead
+        if (waveformData2Ref.current) {
+          drawWaveformStatic(canvas2Ref.current, audioBuffer2, waveformData2Ref);
+        }
+      };
+
+      setAudioSource2(source);
+      setPlaying2(true);
+
+      // Animation loop for playhead
+      const animate = () => {
+        const elapsed = audioCtxRef.current.currentTime - startTime2Ref.current;
+        const progress = (elapsed / audioBuffer2.duration) * 100;
+
+        if (progress <= 100 && canvas2Ref.current && audioBuffer2) {
+          drawPlayhead(canvas2Ref.current, audioBuffer2, progress);
+        }
+
+        if (progress < 100) {
+          animationFrame2Ref.current = requestAnimationFrame(animate);
+        }
+      };
+      animate();
+    }
+  };
 
   const handleFile1Change = (e) => {
     const file = e.target.files[0];
-    console.log('Track A file selected:', file?.name, 'Type:', file?.type);
+    setFile1(file);
+    setError(null);
+    setProgress1(0);
+    setPlaying1(false);
+    if (audioSource1) {
+      audioSource1.stop();
+      setAudioSource1(null);
+    }
+    if (animationFrame1Ref.current) {
+      cancelAnimationFrame(animationFrame1Ref.current);
+    }
     if (file) {
-      // Accept audio files and webm files (which may be video/webm or audio/webm)
-      if (file.type.startsWith('audio/') || file.type === 'video/webm' || file.name.endsWith('.webm')) {
-        console.log('Track A file accepted');
-        setFile1(file);
-        setError(null);
-      } else {
-        console.log('Track A file rejected');
-        setError('Track A: Please select an audio file (WAV, MP3, WebM, etc.)');
-        setFile1(null);
-      }
+      generateWaveform(file, canvas1Ref, setAudioBuffer1, waveformData1Ref);
     }
   };
 
   const handleFile2Change = (e) => {
     const file = e.target.files[0];
-    console.log('Track B file selected:', file?.name, 'Type:', file?.type);
+    setFile2(file);
+    setError(null);
+    setProgress2(0);
+    setPlaying2(false);
+    if (audioSource2) {
+      audioSource2.stop();
+      setAudioSource2(null);
+    }
+    if (animationFrame2Ref.current) {
+      cancelAnimationFrame(animationFrame2Ref.current);
+    }
     if (file) {
-      // Accept audio files and webm files (which may be video/webm or audio/webm)
-      if (file.type.startsWith('audio/') || file.type === 'video/webm' || file.name.endsWith('.webm')) {
-        console.log('Track B file accepted');
-        setFile2(file);
-        setError(null);
-      } else {
-        console.log('Track B file rejected');
-        setError('Track B: Please select an audio file (WAV, MP3, WebM, etc.)');
-        setFile2(null);
-      }
+      generateWaveform(file, canvas2Ref, setAudioBuffer2, waveformData2Ref);
     }
   };
 
@@ -94,19 +330,19 @@ function Studio() {
         {/* Studio Header */}
         <div className="studio-header">
           <div className="header-left">
-            <h1 className="studio-title">
-              <span className="title-icon">◆</span>
-              Processing Studio
-            </h1>
             <div className="status-indicator">
               <span className="status-dot"></span>
-              <span className="status-text">READY</span>
+              <span className="status-text">READY TO UPLOAD</span>
             </div>
           </div>
           <div className="header-right">
-            <div className="tempo-display">
-              <div className="tempo-label">BPM</div>
-              <div className="tempo-value">120</div>
+            <div className="music-heart">
+              <span className="heart-icon">♥</span>
+              <div className="music-notes">
+                <span className="note note-1">♪</span>
+                <span className="note note-2">♫</span>
+                <span className="note note-3">♪</span>
+              </div>
             </div>
           </div>
         </div>
@@ -119,7 +355,7 @@ function Studio() {
             <div className={`track-channel ${file1 ? 'active' : ''}`}>
               <div className="track-header">
                 <div className="track-number">01</div>
-                <div className="track-name">TRACK A</div>
+                <div className="track-name">REFERENCE TRACK</div>
                 <div className={`track-status ${file1 ? 'armed' : ''}`}>
                   {file1 ? '●' : '○'}
                 </div>
@@ -127,11 +363,22 @@ function Studio() {
 
               <div className="track-body">
                 <div className="track-waveform">
-                  {file1 ? (
-                    <div className="waveform-active">
-                      {[...Array(20)].map((_, i) => (
-                        <div key={i} className="wave-bar"></div>
-                      ))}
+                  {audioBuffer1 ? (
+                    <div className="waveform-container">
+                      <canvas
+                        ref={canvas1Ref}
+                        className="waveform-canvas"
+                      ></canvas>
+                      <button
+                        className="play-button"
+                        onClick={togglePlay1}
+                      >
+                        {playing1 ? '⏸' : '▶'}
+                      </button>
+                    </div>
+                  ) : file1 ? (
+                    <div className="waveform-loading">
+                      <span>Analyzing audio...</span>
                     </div>
                   ) : (
                     <div className="waveform-empty">
@@ -148,7 +395,6 @@ function Studio() {
                   <input
                     id="file1-input"
                     type="file"
-                    accept="audio/*,.webm"
                     onChange={handleFile1Change}
                     disabled={uploading}
                     className="file-input-hidden"
@@ -158,7 +404,7 @@ function Studio() {
                 {file1 && (
                   <div className="track-info">
                     <div className="info-row">
-                      <span className="info-label">Name:</span>
+                      <span className="info-label">REFERENCE TRACK</span>
                       <span className="info-value">{file1.name}</span>
                     </div>
                     <div className="info-row">
@@ -178,7 +424,7 @@ function Studio() {
             <div className={`track-channel ${file2 ? 'active' : ''}`}>
               <div className="track-header">
                 <div className="track-number">02</div>
-                <div className="track-name">TRACK B</div>
+                <div className="track-name">YOUR TRACK</div>
                 <div className={`track-status ${file2 ? 'armed' : ''}`}>
                   {file2 ? '●' : '○'}
                 </div>
@@ -186,11 +432,22 @@ function Studio() {
 
               <div className="track-body">
                 <div className="track-waveform">
-                  {file2 ? (
-                    <div className="waveform-active">
-                      {[...Array(20)].map((_, i) => (
-                        <div key={i} className="wave-bar"></div>
-                      ))}
+                  {audioBuffer2 ? (
+                    <div className="waveform-container">
+                      <canvas
+                        ref={canvas2Ref}
+                        className="waveform-canvas"
+                      ></canvas>
+                      <button
+                        className="play-button"
+                        onClick={togglePlay2}
+                      >
+                        {playing2 ? '⏸' : '▶'}
+                      </button>
+                    </div>
+                  ) : file2 ? (
+                    <div className="waveform-loading">
+                      <span>Analyzing audio...</span>
                     </div>
                   ) : (
                     <div className="waveform-empty">
@@ -207,7 +464,6 @@ function Studio() {
                   <input
                     id="file2-input"
                     type="file"
-                    accept="audio/*,.webm"
                     onChange={handleFile2Change}
                     disabled={uploading}
                     className="file-input-hidden"
