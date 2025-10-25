@@ -61,8 +61,8 @@ function About() {
 export default App;
 
 /* ========================================
-   ORIGINAL PURPLE GRADIENT VERSION (COMMENTED OUT)
-   ========================================
+  ORIGINAL PURPLE GRADIENT VERSION (COMMENTED OUT)
+  ========================================
 
 import React, { useState } from 'react';
 import './App.css';
