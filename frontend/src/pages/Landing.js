@@ -24,7 +24,7 @@ function Landing() {
               AUDIO PROCESSING SUITE
             </div>
             <h1 className="hero-title">
-              Create. Process. <span className="title-gradient">Master.</span>
+              Become a Piano <span className="title-gradient">Master</span>
             </h1>
             <p className="hero-description">
               Professional-grade file processing engine designed for audio producers,
@@ -36,10 +36,6 @@ function Landing() {
                 <span className="button-icon">▶</span>
                 Launch Studio
               </Link>
-              <button className="cta-button secondary">
-                <span className="button-icon">◉</span>
-                Watch Demo
-              </button>
             </div>
 
             <div className="hero-stats">

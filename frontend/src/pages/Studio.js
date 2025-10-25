@@ -15,6 +15,7 @@ function Studio() {
   const [playing2, setPlaying2] = useState(false);
   const [progress1, setProgress1] = useState(0);
   const [progress2, setProgress2] = useState(0);
+  const [segments, setSegments] = useState(null);
 
   const canvas1Ref = useRef(null);
   const canvas2Ref = useRef(null);
@@ -27,6 +28,7 @@ function Studio() {
   const animationFrame2Ref = useRef(null);
   const waveformData1Ref = useRef(null);
   const waveformData2Ref = useRef(null);
+  const segmentsRef = useRef(null);
 
   // Initialize audio context
   useEffect(() => {
@@ -38,19 +40,27 @@ function Studio() {
     };
   }, []);
 
-  const drawWaveformStatic = (canvas, buffer, waveformDataRef) => {
+  // Generate rainbow colors for segments
+  const getRainbowColor = (index, total) => {
+    const hue = (index / total) * 360;
+    return `hsl(${hue}, 80%, 60%)`;
+  };
+
+  const drawWaveformStatic = (canvas, buffer, waveformDataRef, isTrack1 = true) => {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
     const data = buffer.getChannelData(0);
     const step = Math.ceil(data.length / canvas.width);
     const amp = canvas.height / 2;
+    const duration = buffer.duration;
 
     console.log('Drawing waveform:', {
       canvasWidth: canvas.width,
       canvasHeight: canvas.height,
       dataLength: data.length,
-      step
+      step,
+      duration
     });
 
     // Store waveform drawing data for redrawing with playhead
@@ -60,46 +70,117 @@ function Studio() {
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Draw waveform
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#0099ff';
-    ctx.beginPath();
+    // Draw waveform with segment colors
+    const segmentData = segmentsRef.current;
+    console.log('Drawing with segments:', segmentData ? 'YES' : 'NO', isTrack1 ? 'Track1' : 'Track2');
 
-    for (let i = 0; i < canvas.width; i++) {
-      const segment = data.slice(i * step, (i + 1) * step);
-      const min = Math.min(...segment);
-      const max = Math.max(...segment);
-      ctx.moveTo(i, (1 + min) * amp);
-      ctx.lineTo(i, (1 + max) * amp);
+    if (segmentData && segmentData.segments && segmentData.segments.length > 0) {
+      const segmentArray = segmentData.segments;
+      const totalSegments = segmentArray.length;
+      console.log('Total segments:', totalSegments);
+
+      for (let i = 0; i < canvas.width; i++) {
+        const currentTime = (i / canvas.width) * duration;
+
+        // Find which segment this pixel belongs to
+        let segmentIndex = 0;
+        for (let s = 0; s < segmentArray.length; s++) {
+          const timeRange = isTrack1 ? segmentArray[s].master_time : segmentArray[s].performer_time_range;
+          if (currentTime >= timeRange[0] && currentTime <= timeRange[1]) {
+            segmentIndex = s;
+            break;
+          }
+        }
+
+        const color = getRainbowColor(segmentIndex, totalSegments);
+        const segment = data.slice(i * step, (i + 1) * step);
+        const min = Math.min(...segment);
+        const max = Math.max(...segment);
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(i, (1 + min) * amp);
+        ctx.lineTo(i, (1 + max) * amp);
+        ctx.stroke();
+      }
+    } else {
+      // Default single color if no segments
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#0099ff';
+      ctx.beginPath();
+
+      for (let i = 0; i < canvas.width; i++) {
+        const segment = data.slice(i * step, (i + 1) * step);
+        const min = Math.min(...segment);
+        const max = Math.max(...segment);
+        ctx.moveTo(i, (1 + min) * amp);
+        ctx.lineTo(i, (1 + max) * amp);
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
   };
 
-  const drawPlayhead = (canvas, buffer, progress) => {
+  const drawPlayhead = (canvas, buffer, progress, isTrack1 = true) => {
     if (!canvas || !buffer) return;
 
     const ctx = canvas.getContext('2d');
     const data = buffer.getChannelData(0);
     const step = Math.ceil(data.length / canvas.width);
     const amp = canvas.height / 2;
+    const duration = buffer.duration;
 
     // Clear canvas
     ctx.fillStyle = '#1a1a2e';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Redraw waveform
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#0099ff';
-    ctx.beginPath();
+    // Redraw waveform with segment colors
+    const segmentData = segmentsRef.current;
 
-    for (let i = 0; i < canvas.width; i++) {
-      const segment = data.slice(i * step, (i + 1) * step);
-      const min = Math.min(...segment);
-      const max = Math.max(...segment);
-      ctx.moveTo(i, (1 + min) * amp);
-      ctx.lineTo(i, (1 + max) * amp);
+    if (segmentData && segmentData.segments && segmentData.segments.length > 0) {
+      const segmentArray = segmentData.segments;
+      const totalSegments = segmentArray.length;
+
+      for (let i = 0; i < canvas.width; i++) {
+        const currentTime = (i / canvas.width) * duration;
+
+        // Find which segment this pixel belongs to
+        let segmentIndex = 0;
+        for (let s = 0; s < segmentArray.length; s++) {
+          const timeRange = isTrack1 ? segmentArray[s].master_time : segmentArray[s].performer_time_range;
+          if (currentTime >= timeRange[0] && currentTime <= timeRange[1]) {
+            segmentIndex = s;
+            break;
+          }
+        }
+
+        const color = getRainbowColor(segmentIndex, totalSegments);
+        const segment = data.slice(i * step, (i + 1) * step);
+        const min = Math.min(...segment);
+        const max = Math.max(...segment);
+
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(i, (1 + min) * amp);
+        ctx.lineTo(i, (1 + max) * amp);
+        ctx.stroke();
+      }
+    } else {
+      // Default single color if no segments
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = '#0099ff';
+      ctx.beginPath();
+
+      for (let i = 0; i < canvas.width; i++) {
+        const segment = data.slice(i * step, (i + 1) * step);
+        const min = Math.min(...segment);
+        const max = Math.max(...segment);
+        ctx.moveTo(i, (1 + min) * amp);
+        ctx.lineTo(i, (1 + max) * amp);
+      }
+      ctx.stroke();
     }
-    ctx.stroke();
 
     // Draw red playhead
     const playheadX = (progress / 100) * canvas.width;
@@ -111,7 +192,7 @@ function Studio() {
     ctx.stroke();
   };
 
-  const generateWaveform = async (file, canvasRef, setAudioBuffer, waveformDataRef) => {
+  const generateWaveform = async (file, canvasRef, setAudioBuffer, waveformDataRef, isTrack1 = true) => {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const audioBuffer = await audioCtxRef.current.decodeAudioData(arrayBuffer);
@@ -125,7 +206,7 @@ function Studio() {
           console.log('Canvas sizing:', { width, parentWidth: canvasRef.current.parentElement.offsetWidth });
           canvasRef.current.width = width;
           canvasRef.current.height = 120;
-          drawWaveformStatic(canvasRef.current, audioBuffer, waveformDataRef);
+          drawWaveformStatic(canvasRef.current, audioBuffer, waveformDataRef, isTrack1);
         }
       }, 100);
     } catch (err) {
@@ -162,7 +243,7 @@ function Studio() {
       }
       // Redraw without playhead
       if (waveformData1Ref.current) {
-        drawWaveformStatic(canvas1Ref.current, audioBuffer1, waveformData1Ref);
+        drawWaveformStatic(canvas1Ref.current, audioBuffer1, waveformData1Ref, true);
       }
     };
 
@@ -176,7 +257,7 @@ function Studio() {
       const progress = (currentTime / audioBuffer1.duration) * 100;
 
       if (progress <= 100 && canvas1Ref.current && audioBuffer1) {
-        drawPlayhead(canvas1Ref.current, audioBuffer1, progress);
+        drawPlayhead(canvas1Ref.current, audioBuffer1, progress, true);
       }
 
       if (progress < 100) {
@@ -221,7 +302,7 @@ function Studio() {
       playFromPosition1(offsetSeconds);
     } else {
       // If paused, just update the visual
-      drawPlayhead(canvas1Ref.current, audioBuffer1, percent);
+      drawPlayhead(canvas1Ref.current, audioBuffer1, percent, true);
     }
   };
 
@@ -253,7 +334,7 @@ function Studio() {
       }
       // Redraw without playhead
       if (waveformData2Ref.current) {
-        drawWaveformStatic(canvas2Ref.current, audioBuffer2, waveformData2Ref);
+        drawWaveformStatic(canvas2Ref.current, audioBuffer2, waveformData2Ref, false);
       }
     };
 
@@ -267,7 +348,7 @@ function Studio() {
       const progress = (currentTime / audioBuffer2.duration) * 100;
 
       if (progress <= 100 && canvas2Ref.current && audioBuffer2) {
-        drawPlayhead(canvas2Ref.current, audioBuffer2, progress);
+        drawPlayhead(canvas2Ref.current, audioBuffer2, progress, false);
       }
 
       if (progress < 100) {
@@ -312,7 +393,7 @@ function Studio() {
       playFromPosition2(offsetSeconds);
     } else {
       // If paused, just update the visual
-      drawPlayhead(canvas2Ref.current, audioBuffer2, percent);
+      drawPlayhead(canvas2Ref.current, audioBuffer2, percent, false);
     }
   };
 
@@ -331,7 +412,7 @@ function Studio() {
       cancelAnimationFrame(animationFrame1Ref.current);
     }
     if (file) {
-      generateWaveform(file, canvas1Ref, setAudioBuffer1, waveformData1Ref);
+      generateWaveform(file, canvas1Ref, setAudioBuffer1, waveformData1Ref, true);
     }
   };
 
@@ -350,7 +431,7 @@ function Studio() {
       cancelAnimationFrame(animationFrame2Ref.current);
     }
     if (file) {
-      generateWaveform(file, canvas2Ref, setAudioBuffer2, waveformData2Ref);
+      generateWaveform(file, canvas2Ref, setAudioBuffer2, waveformData2Ref, false);
     }
   };
 
@@ -386,6 +467,34 @@ function Studio() {
       }
 
       setResult(data);
+
+      // Store segment data for color coding
+      if (data.result && typeof data.result === 'string') {
+        try {
+          const analysisData = JSON.parse(data.result);
+          if (analysisData.segments) {
+            setSegments(analysisData);
+            segmentsRef.current = analysisData; // Store in ref for immediate access
+            console.log('Segments loaded:', analysisData.segments.length);
+            console.log('First segment:', analysisData.segments[0]);
+
+            // Redraw waveforms with segment colors
+            setTimeout(() => {
+              if (audioBuffer1 && canvas1Ref.current) {
+                console.log('Redrawing track 1 with segments');
+                drawWaveformStatic(canvas1Ref.current, audioBuffer1, waveformData1Ref, true);
+              }
+              if (audioBuffer2 && canvas2Ref.current) {
+                console.log('Redrawing track 2 with segments');
+                drawWaveformStatic(canvas2Ref.current, audioBuffer2, waveformData2Ref, false);
+              }
+            }, 100);
+          }
+        } catch (parseError) {
+          console.error('Error parsing analysis data:', parseError);
+        }
+      }
+
       setFile1(null);
       setFile2(null);
 
