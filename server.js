@@ -22,6 +22,8 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 
+// ====== API ROUTES (MUST COME BEFORE STATIC FILES) ======
+
 // API endpoint to handle file uploads and run Python script
 app.post('/api/upload', async (req, res) => {
   try {
@@ -106,10 +108,13 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
+// ====== FRONTEND STATIC FILES (MUST COME AFTER API ROUTES) ======
+
 // Serve frontend
 app.use(express.static(path.join(__dirname, './frontend/build')));
 
-app.get('/', (req, res) => {
+// Catch-all route for React Router (must be last)
+app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, './frontend/build', 'index.html'));
 });
 
