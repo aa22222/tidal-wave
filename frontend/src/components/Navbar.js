@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import './Navbar.css';
 
 function Navbar() {
@@ -18,6 +18,14 @@ function Navbar() {
         </div>
 
         <div className="navbar-menu">
+          <Link to="/" className="nav-link">
+            <span className="nav-icon">◆</span>
+            Home
+          </Link>
+          <Link to="/studio" className="nav-link">
+            <span className="nav-icon">▶</span>
+            Studio
+          </Link>
         </div>
 
         <div className="navbar-controls">

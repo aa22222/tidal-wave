@@ -54,7 +54,7 @@ function Landing() {
           <div className="hero-content">
             <div className="hero-tag">
               <span className="tag-dot"></span>
-              AUDIO PROCESSING SUITE
+              PERSONAL AUDIO SUITE
             </div>
             <h1 className="hero-title">
               <span className="title-clear">Become a Piano</span>{' '}
