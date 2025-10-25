@@ -25,6 +25,7 @@ if (!fs.existsSync(uploadsDir)) {
 // API endpoint to handle file uploads and run Python script
 app.post('/api/upload', async (req, res) => {
   try {
+    console.log("Upload request");
     // Check if files were uploaded
     if (!req.files || Object.keys(req.files).length === 0) {
       return res.status(400).json({ error: 'No files were uploaded' });
@@ -39,8 +40,8 @@ app.post('/api/upload', async (req, res) => {
     }
 
     // Save files to uploads directory
-    const file1Path = path.join(uploadsDir, file1.name);
-    const file2Path = path.join(uploadsDir, file2.name);
+    const file1Path = path.join(uploadsDir, req.ip + file1.name);
+    const file2Path = path.join(uploadsDir, req.ip + file2.name);
 
     await file1.mv(file1Path);
     await file2.mv(file2Path);
@@ -50,7 +51,7 @@ app.post('/api/upload', async (req, res) => {
     console.log('File 2:', file2Path);
 
     // Run Python script with file paths as arguments
-    const pythonProcess = spawn('python', [
+    const pythonProcess = spawn('python3', [
       path.join(__dirname, 'scripts', 'process_files.py'),
       file1Path,
       file2Path
@@ -81,8 +82,8 @@ app.post('/api/upload', async (req, res) => {
       console.log('Python script output:', pythonOutput);
 
       // Clean up uploaded files (optional)
-      // fs.unlinkSync(file1Path);
-      // fs.unlinkSync(file2Path);
+      fs.unlinkSync(file1Path);
+      fs.unlinkSync(file2Path);
 
       res.json({
         message: 'Files processed successfully',
@@ -105,14 +106,13 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-});
-
-
 // Serve frontend
 app.use(express.static(path.join(__dirname, './frontend/build')));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, './frontend/build', 'index.html'));
+});
+
+app.listen(PORT, () => {
+  console.log(`Server is running on http://localhost:${PORT}`);
 });

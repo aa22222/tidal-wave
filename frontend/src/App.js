@@ -75,13 +75,17 @@ function App() {
   const [error, setError] = useState(null);
 
   const handleFile1Change = (e) => {
-    setFile1(e.target.files[0]);
-    setError(null);
+    const file = e.target.files[0];
+    if(file.type.startsWith('audio/')) setError(null);
+    else setError("First file is not an audio file.");
+    setFile1(file);
   };
 
   const handleFile2Change = (e) => {
+    const file = e.target.files[0];
+    if(file.type.startsWith('audio/')) setError(null);
+    else setError("Second file is not an audio file.");
     setFile2(e.target.files[0]);
-    setError(null);
   };
 
   const handleSubmit = async (e) => {
@@ -104,7 +108,7 @@ function App() {
 
     try {
       // Send POST request to backend
-      const response = await fetch('http://localhost:5000/api/upload', {
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData,
       });
