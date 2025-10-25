@@ -7,6 +7,7 @@
 
 #other
 /uploads
+/local_test
 
 # misc
 .DS_Store
