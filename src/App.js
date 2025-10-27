@@ -8,7 +8,7 @@ import './App.css';
 // NEW APP - Music Editor Theme
 function App() {
   return (
-    <Router>
+    <BrowserRouter basename='/tidal-wave'>
       <div className="App">
         <Navbar />
         <Routes>
@@ -16,7 +16,7 @@ function App() {
           <Route path="/studio" element={<Studio />} />
         </Routes>
       </div>
-    </Router>
+    </BrowserRouter>
   );
 }
 
